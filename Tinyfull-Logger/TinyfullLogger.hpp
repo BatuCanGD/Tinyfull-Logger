@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
+#include <utility>
 #include <string_view>
 #include <format>
 #include <print>
@@ -14,9 +15,15 @@
 #endif
 
 
-namespace {
-    bool checkANSI(FILE* stream) {
-#if defined(_WIN32)
+namespace detail {
+    inline bool checkANSI(FILE* stream) {
+        if (const char* force = std::getenv("FORCE_COLOR"); force != nullptr && force[0] != '\0' && std::strcmp(force, "0") != 0) {
+            return true;
+        }
+        if (const char* no_color = std::getenv("NO_COLOR"); no_color != nullptr && no_color[0] != '\0') {
+            return false;
+        }
+    #if defined(_WIN32)
         int fd = _fileno(stream);
         if (!_isatty(fd)) return false;
 
@@ -28,7 +35,7 @@ namespace {
 
         dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         return SetConsoleMode(hOut, dwMode) != 0;
-#else
+    #else
         int fd = fileno(stream);
         if (!isatty(fd)) return false;
 
@@ -37,84 +44,100 @@ namespace {
             return false;
         }
         return true;
-#endif
+    #endif
     }
-
-    bool supportsANSI(FILE* stream) {
+    inline bool supportsANSI(FILE* stream) {
         if (stream == stderr) {
             static const bool stderr_ansi = checkANSI(stderr);
             return stderr_ansi;
         }
-        static const bool stdout_ansi = checkANSI(stdout);
-        return stdout_ansi;
+        if (stream == stdout) {
+            static const bool stdout_ansi = checkANSI(stdout);
+            return stdout_ansi;
+        }
+        return checkANSI(stream);
     }
+    struct Style{
+        std::string_view name;
+        std::string_view color;
+    };
 }
 
 class Log {
 public:
     enum class Level {
-        Success, // action happened/completed correctly/successfully
-        Info,    // normal message, informative
-        Warning, // something might have not have been changed but everything else is fine
-        Error,   // something broke or didnt trigger but it didnt crash the game
-        Fatal    // something extremely wrong happened and it could have crashed the program
+        Trace,
+        Debug,
+        Info,
+        Success,
+        Warning,
+        Error,
+        Fatal
     };
     enum class Category {
-        Input, // User Input
-        Value, // Value Changes
-        Memory,// Pointers
-        Action // User Action
+        Action,
+        Input,
+        Value,
+        Memory,
+        Resource,
+        Audio,
+        Physics,
+        Network
     };
 private:
-    static constexpr const char* getMessageLevel(Level t, bool use_color) {
-        if (!use_color) {
-            switch (t) {
-            case Level::Success: return "SUCCESS";
-            case Level::Info:    return "INFO";
-            case Level::Warning: return "WARNING";
-            case Level::Error:   return "ERROR";
-            case Level::Fatal:   return "FATAL";
-            default: return "LEVEL FETCH FAILURE";
-            }
-        }
+    static constexpr detail::Style getLevel(Level t) {
         switch (t) {
-        case Level::Success: return "\033[32mSUCCESS\033[0m";
-        case Level::Info:    return "\033[38;2;208;200;140mINFO\033[0m";
-        case Level::Warning: return "\033[33mWARNING\033[0m";
-        case Level::Error:   return "\033[31mERROR\033[0m";
-        case Level::Fatal:   return "\033[1;97;41mFATAL\033[0m";
-        default: return "\033[31mLEVEL FETCH FAILURE\033[0m";
+        case Level::Trace:   return {"TRACE",   "\033[91m"};
+        case Level::Debug:   return {"DEBUG",   "\033[1;97;43m"};
+        case Level::Info:    return {"INFO",    "\033[38;2;208;200;140m"};
+        case Level::Success: return {"SUCCESS", "\033[32m"};
+        case Level::Warning: return {"WARNING", "\033[33m"};
+        case Level::Error:   return {"ERROR",   "\033[31m"};
+        case Level::Fatal:   return {"FATAL",   "\033[1;97;41m"};
+        default:             return {"UNKNOWN", "\033[31m"};
         }
     }
 
-    static constexpr const char* getMessageCategory(Category m, bool use_color) {
-        if (!use_color) {
-            switch (m) {
-            case Category::Input:  return "Input";
-            case Category::Value:  return "Value";
-            case Category::Action: return "Action";
-            case Category::Memory: return "Memory";
-            default: return "Category fetch failure";
-            }
-        }
+    static constexpr detail::Style getCategory(Category m) {
         switch (m) {
-        case Category::Input:  return "\033[94mInput\033[0m";
-        case Category::Value:  return "\033[33mValue\033[0m";
-        case Category::Action: return "\033[35mAction\033[0m";
-        case Category::Memory: return "\033[32mMemory\033[0m";
-        default: return "\033[31mCategory fetch failure\033[0m";
+        case Category::Action:   return {"Action",   "\033[35m"};
+        case Category::Input:    return {"Input",    "\033[94m"};
+        case Category::Value:    return {"Value",    "\033[33m"};
+        case Category::Memory:   return {"Memory",   "\033[32m"};
+        case Category::Resource: return {"Resource", "\033[1;35m"};
+        case Category::Audio:    return {"Audio",    "\033[38;5;212m"};
+        case Category::Physics:  return {"Physics",  "\033[0;34m"};
+        case Category::Network:  return {"Network",  "\033[38;2;4;165;229m"};
+        default:                 return {"Unknown",  "\033[31m"};
+        }
+    }
+    static bool isCrucialStream(Level t){
+        return t == Level::Error || t == Level::Fatal;
+    }
+
+    static void printHeader(FILE* stream, Level t, Category m) {
+        bool color = detail::supportsANSI(stream);
+        auto lvl = getLevel(t);
+        auto cat = getCategory(m);
+
+        if (color) {
+            std::print(stream, "[{}{}\033[0m][{}{}\033[0m] ", 
+                       lvl.color, lvl.name, 
+                       cat.color, cat.name);
+        } else {
+            std::print(stream, "[{}][{}] ", lvl.name, cat.name);
         }
     }
 public:
     static void Message(Level t, Category m, std::string_view details = "") {
-        FILE* stream = (t == Level::Error || t == Level::Fatal) ? stderr : stdout;
-        bool color_enabled = ::supportsANSI(stream);
-        std::println(stream, "[{}][{}] {}", getMessageLevel(t, color_enabled), getMessageCategory(m, color_enabled), details);
+        FILE* stream = isCrucialStream(t) ? stderr : stdout;
+        printHeader(stream, t, m);
+        std::println(stream, "{}", details);
     }
     template <typename... Args>
     static void Message(Level t, Category m, std::format_string<Args...> fmt, Args&&... args) {
-        FILE* stream = (t == Level::Error || t == Level::Fatal) ? stderr : stdout;
-        bool color_enabled = ::supportsANSI(stream);
-        std::println(stream, "[{}][{}] {}", getMessageLevel(t, color_enabled), getMessageCategory(m, color_enabled), std::format(fmt, std::forward<Args>(args)...));
+        FILE* stream = isCrucialStream(t) ? stderr : stdout;
+        printHeader(stream, t, m);
+        std::println(stream, fmt, std::forward<Args>(args)...);
     }
 };

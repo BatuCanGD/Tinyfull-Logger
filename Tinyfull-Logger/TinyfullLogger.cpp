@@ -45,14 +45,14 @@ int main(){
     std::string y = ::getInput<std::string>();
     std::ranges::transform(y, y.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-    bool is_positive = std::ranges::any_of(getPositivePhrases(), [&y](const auto& p){ return p == y; });
-    bool is_negative = std::ranges::any_of(getNegativePhrases(), [&y](const auto& p){ return p == y; });
-    bool is_antagonizing = std::ranges::any_of(getAntagonizingPhrases(), [&y](const auto& p){ return p == y; });
+    bool is_positive     =  std::ranges::any_of(getPositivePhrases(),     [&y](const auto& p){ return p == y; });
+    bool is_negative     =  std::ranges::any_of(getNegativePhrases(),     [&y](const auto& p){ return p == y; });
+    bool is_antagonizing =  std::ranges::any_of(getAntagonizingPhrases(), [&y](const auto& p){ return p == y; });
 
-    if (is_positive) Log::Message(Log::Level::Success, Log::Category::Input, "Thats amazing to hear!! :D");
-    else if (is_negative) Log::Message(Log::Level::Error, Log::Category::Input, "Thats sad to hear! :(");
-    else if (is_antagonizing) Log::Message(Log::Level::Fatal, Log::Category::Input, "bro...");
-    else Log::Message(Log::Level::Info, Log::Category::Input, "ok... :P");
+    if (is_positive)            Log::Message(Log::Level::Success, Log::Category::Input, "Thats amazing to hear!! :D");
+    else if (is_negative)       Log::Message(Log::Level::Error, Log::Category::Input, "Thats sad to hear! :(");
+    else if (is_antagonizing)   Log::Message(Log::Level::Fatal, Log::Category::Input, "bro...");
+    else                        Log::Message(Log::Level::Info, Log::Category::Input, "ok... :P");
 
     std::cin.get();
 
