@@ -10,6 +10,8 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <type_traits>
+#include <concepts>
 #include <string_view>
 #include <format>
 #include <print>
@@ -26,13 +28,21 @@
     #include <windows.h>
 
     #ifdef ERROR
+        #pragma push_macro("ERROR")
         #undef ERROR
+        #define TINYFULL_LOGGER_ERROR_WAS_DEFINED
     #endif
+
     #ifdef min
+        #pragma push_macro("min")
         #undef min
+        #define TINYFULL_LOGGER_MIN_WAS_DEFINED
     #endif
+
     #ifdef max
+        #pragma push_macro("max")
         #undef max
+        #define TINYFULL_LOGGER_MAX_WAS_DEFINED
     #endif
 #else
     #include <unistd.h>
@@ -119,7 +129,7 @@ private:
         switch (t) {
         case Level::Trace:   return {"TRACE",   "\x1b[38;5;244m"};
         case Level::Debug:   return {"DEBUG",   "\x1b[1;97;43m"};
-        case Level::Info:    return {"INFO",    "\x1b[38;2;208;200;140m"};
+        case Level::Info:    return {"INFO",    "\x1b[38;5;186m"};
         case Level::Success: return {"SUCCESS", "\x1b[32m"};
         case Level::Warning: return {"WARNING", "\x1b[33m"};
         case Level::Error:   return {"ERROR",   "\x1b[31m"};
@@ -142,7 +152,7 @@ private:
         default:                    return {"Unknown",  "\x1b[31m"};
         }
     }
-    static FILE* usesErrorStream(Level t) noexcept {
+    static FILE* getDefaultStream(Level t) noexcept {
         return (t == Level::Error || t == Level::Fatal) ? stderr : stdout;
     }
 
@@ -165,7 +175,7 @@ private:
 public:
     template <typename... Args>
     static void Message(LogOptions opt, std::format_string<Args...> fmt, Args&&... args) {
-        FILE* const stream = opt.stream ? opt.stream : usesErrorStream(opt.level);
+        FILE* const stream = opt.stream ? opt.stream : getDefaultStream(opt.level);
         printHeader(stream, opt.level, opt.category);
         std::println(stream, fmt, std::forward<Args>(args)...);
     }
@@ -175,4 +185,18 @@ public:
     }
 };
 
+
+#ifdef TINYFULL_LOGGER_ERROR_WAS_DEFINED
+    #pragma pop_macro("ERROR")
+    #undef TINYFULL_LOGGER_ERROR_WAS_DEFINED
 #endif
+#ifdef TINYFULL_LOGGER_MIN_WAS_DEFINED
+    #pragma pop_macro("min")
+    #undef TINYFULL_LOGGER_MIN_WAS_DEFINED
+#endif
+#ifdef TINYFULL_LOGGER_MAX_WAS_DEFINED
+    #pragma pop_macro("max")
+    #undef TINYFULL_LOGGER_MAX_WAS_DEFINED
+#endif
+
+#endif // TINYFULL_LOGGER_H
