@@ -1,4 +1,8 @@
 #pragma once
+
+#ifndef TINYFULL_LOGGER_H
+#define TINYFULL_LOGGER_H
+
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
@@ -11,8 +15,25 @@
 #include <print>
 
 #if defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+
     #include <io.h>
     #include <windows.h>
+
+    #ifdef ERROR
+        #undef ERROR
+    #endif
+    #ifdef min
+        #undef min
+    #endif
+    #ifdef max
+        #undef max
+    #endif
 #else
     #include <unistd.h>
 #endif
@@ -87,15 +108,16 @@ public:
     struct LogOptions {
         Level level = Level::NoLevel;
         Category category = Category::NoCategory;
+        FILE* stream = nullptr;
     };
 private:
     struct Style{
         std::string_view name;
         std::string_view color;
     };
-    static constexpr Style getLevel(Level t) {
+    static constexpr Style getLevel(Level t) noexcept {
         switch (t) {
-        case Level::Trace:   return {"TRACE",   "\x1b[91m"};
+        case Level::Trace:   return {"TRACE",   "\x1b[38;5;244m"};
         case Level::Debug:   return {"DEBUG",   "\x1b[1;97;43m"};
         case Level::Info:    return {"INFO",    "\x1b[38;2;208;200;140m"};
         case Level::Success: return {"SUCCESS", "\x1b[32m"};
@@ -106,7 +128,7 @@ private:
         default:             return {"UNKNOWN", "\x1b[31m"};
         }
     }
-    static constexpr Style getCategory(Category m) {
+    static constexpr Style getCategory(Category m) noexcept {
         switch (m) {
         case Category::Action:      return {"Action",   "\x1b[38;5;227m"};
         case Category::Input:       return {"Input",    "\x1b[94m"};
@@ -120,18 +142,18 @@ private:
         default:                    return {"Unknown",  "\x1b[31m"};
         }
     }
-    static bool usesErrorStream(Level t){
-        return t == Level::Error || t == Level::Fatal || t == Level::Trace;
+    static FILE* usesErrorStream(Level t) noexcept {
+        return (t == Level::Error || t == Level::Fatal) ? stderr : stdout;
     }
 
     static void printHeader(FILE* stream, Level t, Category m) {
         std::array styles{getLevel(t), getCategory(m)};
-        bool not_empty = std::any_of(styles.begin(), styles.end(), [](const auto& st){
+        const bool not_empty = std::any_of(styles.begin(), styles.end(), [](const auto& st){
             return !st.name.empty();
         });
 
         if (not_empty){
-            bool color = TinyLoggerAnsiCheck::supportsANSI(stream);
+            const bool color = TinyLoggerAnsiCheck::supportsANSI(stream);
             for (const auto& st : styles) {
                 if (st.name.empty()) continue;
                 if (color) std::print(stream, "[{}{}\x1b[0m]", st.color, st.name);
@@ -143,7 +165,7 @@ private:
 public:
     template <typename... Args>
     static void Message(LogOptions opt, std::format_string<Args...> fmt, Args&&... args) {
-        FILE* stream = usesErrorStream(opt.level) ? stderr : stdout;
+        FILE* const stream = opt.stream ? opt.stream : usesErrorStream(opt.level);
         printHeader(stream, opt.level, opt.category);
         std::println(stream, fmt, std::forward<Args>(args)...);
     }
@@ -152,3 +174,5 @@ public:
         Message(LogOptions{}, fmt, std::forward<Args>(args)...);
     }
 };
+
+#endif
