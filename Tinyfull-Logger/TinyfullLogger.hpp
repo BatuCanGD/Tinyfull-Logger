@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <utility>
 #include <array>
+#include <algorithm>
+#include <chrono>
 #include <string_view>
 #include <format>
 #include <print>
