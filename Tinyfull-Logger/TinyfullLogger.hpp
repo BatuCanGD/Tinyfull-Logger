@@ -69,7 +69,7 @@ public:
         Warning,
         Error,
         Fatal,
-        Clear
+        NoLevel
     };
     enum class Category {
         Action,
@@ -80,11 +80,11 @@ public:
         Audio,
         Physics,
         Network,
-        Clear
+        NoCategory
     };
     struct LogOptions {
-        Level level = Level::Clear;
-        Category category = Category::Clear;
+        Level level = Level::NoLevel;
+        Category category = Category::NoCategory;
     };
 private:
     struct Style{
@@ -93,33 +93,33 @@ private:
     };
     static constexpr Style getLevel(Level t) {
         switch (t) {
-        case Level::Trace:   return {"TRACE",   "\033[91m"};
-        case Level::Debug:   return {"DEBUG",   "\033[1;97;43m"};
-        case Level::Info:    return {"INFO",    "\033[38;2;208;200;140m"};
-        case Level::Success: return {"SUCCESS", "\033[32m"};
-        case Level::Warning: return {"WARNING", "\033[33m"};
-        case Level::Error:   return {"ERROR",   "\033[31m"};
-        case Level::Fatal:   return {"FATAL",   "\033[1;97;41m"};
-        case Level::Clear:   return {"", ""};
-        default:             return {"UNKNOWN", "\033[31m"};
+        case Level::Trace:   return {"TRACE",   "\x1b[91m"};
+        case Level::Debug:   return {"DEBUG",   "\x1b[1;97;43m"};
+        case Level::Info:    return {"INFO",    "\x1b[38;2;208;200;140m"};
+        case Level::Success: return {"SUCCESS", "\x1b[32m"};
+        case Level::Warning: return {"WARNING", "\x1b[33m"};
+        case Level::Error:   return {"ERROR",   "\x1b[31m"};
+        case Level::Fatal:   return {"FATAL",   "\x1b[1;97;41m"};
+        case Level::NoLevel: return {"", ""};
+        default:             return {"UNKNOWN", "\x1b[31m"};
         }
     }
     static constexpr Style getCategory(Category m) {
         switch (m) {
-        case Category::Action:   return {"Action",   "\033[35m"};
-        case Category::Input:    return {"Input",    "\033[94m"};
-        case Category::Value:    return {"Value",    "\033[33m"};
-        case Category::Memory:   return {"Memory",   "\033[32m"};
-        case Category::Resource: return {"Resource", "\033[1;35m"};
-        case Category::Audio:    return {"Audio",    "\033[38;5;212m"};
-        case Category::Physics:  return {"Physics",  "\033[0;34m"};
-        case Category::Network:  return {"Network",  "\033[38;2;4;165;229m"};
-        case Category::Clear:    return {"", ""};
-        default:                 return {"Unknown",  "\033[31m"};
+        case Category::Action:      return {"Action",   "\x1b[38;5;227m"};
+        case Category::Input:       return {"Input",    "\x1b[94m"};
+        case Category::Value:       return {"Value",    "\x1b[33m"};
+        case Category::Memory:      return {"Memory",   "\x1b[38;5;118m"};
+        case Category::Resource:    return {"Resource", "\x1b[38;5;98m"};
+        case Category::Audio:       return {"Audio",    "\x1b[38;5;212m"};
+        case Category::Physics:     return {"Physics",  "\x1b[38;5;159m"};
+        case Category::Network:     return {"Network",  "\x1b[38;2;4;165;229m"};
+        case Category::NoCategory:  return {"", ""};
+        default:                    return {"Unknown",  "\x1b[31m"};
         }
     }
     static bool usesErrorStream(Level t){
-        return t == Level::Error || t == Level::Fatal || t == Level::Trace || t == Level::Debug;
+        return t == Level::Error || t == Level::Fatal || t == Level::Trace;
     }
 
     static void printHeader(FILE* stream, Level t, Category m) {
@@ -128,7 +128,7 @@ private:
 
         for (const auto& st : styles) {
             if (st.name.empty()) continue;
-            if (color) std::print(stream, "[{}{}\033[0m]", st.color, st.name);
+            if (color) std::print(stream, "[{}{}\x1b[0m]", st.color, st.name);
             else std::print(stream, "[{}]", st.name);
         }
         std::print(stream, " ");
