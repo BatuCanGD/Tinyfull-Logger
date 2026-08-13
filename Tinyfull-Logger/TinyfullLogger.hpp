@@ -124,14 +124,16 @@ private:
 
     static void printHeader(FILE* stream, Level t, Category m) {
         bool color = TinyLoggerAnsiCheck::supportsANSI(stream);
+        bool all_empty = true;
         std::array styles{getLevel(t), getCategory(m)};
 
         for (const auto& st : styles) {
             if (st.name.empty()) continue;
+            if (all_empty) all_empty = false;
             if (color) std::print(stream, "[{}{}\x1b[0m]", st.color, st.name);
             else std::print(stream, "[{}]", st.name);
         }
-        std::print(stream, " ");
+        if (!all_empty) std::print(stream, " ");
     }
 public:
     template <typename... Args>
