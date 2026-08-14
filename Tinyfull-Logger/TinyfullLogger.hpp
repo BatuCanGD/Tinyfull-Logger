@@ -12,9 +12,6 @@
 #include <chrono>
 #include <fstream>
 #include <string>
-#include <filesystem>
-#include <type_traits>
-#include <concepts>
 #include <string_view>
 #include <format>
 #include <print>
@@ -168,10 +165,6 @@ private:
     }
     static FILE* getDefaultStream(Level t) noexcept {
         return (t == Level::Error || t == Level::Fatal) ? stderr : stdout;
-    }
-
-    static bool shouldSaveToFile(LogOptions opt){
-        return opt.printy == PrinTy::Both || opt.printy == PrinTy::File;
     }
 
     static constexpr const char* log_file_name = "tinyful-logger-logs.txt";
