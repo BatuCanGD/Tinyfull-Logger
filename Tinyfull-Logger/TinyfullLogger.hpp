@@ -183,12 +183,10 @@ private:
         }
     }
 
-    static HeadUp printHeader(FILE* stream,LogOptions opt) {
+    static HeadUp getHeader(FILE* stream,LogOptions opt) {
         HeadUp hup{};
 
-        const auto local_time = std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
-        const std::string time = std::format("[{:%H:%M:%S}]", local_time);
-        
+        const std::string time = std::format("[{:%H:%M:%S}]", std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())});
         hup.terminal.append(time);
         hup.file.append(time);
 
@@ -215,7 +213,8 @@ private:
         hup.file.append(" ");
         return hup;
     }
-    static void printBody(FILE* stream, LogOptions opt, HeadUp header, std::string_view msg){
+    static void SendMessage(FILE* stream, LogOptions opt, std::string_view msg){
+        auto header = getHeader(stream, opt);
         switch(opt.printy){
         case PrinTy::Terminal:
             std::print(stream,"{}", header.terminal);
@@ -237,14 +236,13 @@ public:
     template <typename... Args>
     static void Message(LogOptions opt, std::format_string<Args...> fmt, Args&&... args) {
         FILE* const stream = opt.stream ? opt.stream : getDefaultStream(opt.level);
-        printBody(stream, opt, printHeader(stream, opt), std::format(fmt, std::forward<Args>(args)...));
+        SendMessage(stream, opt, std::format(fmt, std::forward<Args>(args)...));
     }
     template <typename... Args>
     static void Message(std::format_string<Args...> fmt, Args&&... args) {
         Message(LogOptions{}, fmt, std::forward<Args>(args)...);
     }
 };
-
 
 #ifdef TINYFULL_LOGGER_ERROR_WAS_DEFINED
     #pragma pop_macro("ERROR")
