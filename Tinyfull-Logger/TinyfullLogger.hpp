@@ -10,6 +10,9 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+#include <string>
+#include <filesystem>
 #include <type_traits>
 #include <concepts>
 #include <string_view>
@@ -94,6 +97,11 @@ namespace TinyLoggerAnsiCheck {
 
 class Log {
 public:
+    enum class PrinTy {
+        Terminal,
+        File,
+        Both
+    };
     enum class Level {
         Trace,
         Debug,
@@ -118,6 +126,7 @@ public:
     struct LogOptions {
         Level level = Level::NoLevel;
         Category category = Category::NoCategory;
+        PrinTy printy = PrinTy::Terminal;
         FILE* stream = nullptr;
     };
 private:
@@ -125,6 +134,11 @@ private:
         std::string_view name;
         std::string_view color;
     };
+    struct HeadUp {
+        std::string terminal;
+        std::string file;
+    };
+
     static constexpr Style getLevel(Level t) noexcept {
         switch (t) {
         case Level::Trace:   return {"TRACE",   "\x1b[38;5;244m"};
@@ -156,28 +170,74 @@ private:
         return (t == Level::Error || t == Level::Fatal) ? stderr : stdout;
     }
 
-    static void printHeader(FILE* stream, Level t, Category m) {
-        std::array styles{getLevel(t), getCategory(m)};
+    static bool shouldSaveToFile(LogOptions opt){
+        return opt.printy == PrinTy::Both || opt.printy == PrinTy::File;
+    }
+
+    static constexpr const char* log_file_name = "tinyful-logger-logs.txt";
+    static void saveToFile(std::string_view msg = "", bool newline = false){
+        static std::ofstream outFile(log_file_name, std::ios::app);
+        if (outFile.is_open()){
+            outFile << msg;
+            if (newline) outFile << '\n';
+        }
+    }
+
+    static HeadUp printHeader(FILE* stream,LogOptions opt) {
+        HeadUp hup{};
+
+        const auto local_time = std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+        const std::string time = std::format("[{:%H:%M:%S}]", local_time);
+        
+        hup.terminal.append(time);
+        hup.file.append(time);
+
+        std::array styles{getLevel(opt.level), getCategory(opt.category)};
         const bool not_empty = std::any_of(styles.begin(), styles.end(), [](const auto& st){
             return !st.name.empty();
         });
 
         if (not_empty){
-            const bool color = TinyLoggerAnsiCheck::supportsANSI(stream);
+            const bool color = stream ? TinyLoggerAnsiCheck::supportsANSI(stream) : false;
             for (const auto& st : styles) {
                 if (st.name.empty()) continue;
-                if (color) std::print(stream, "[{}{}\x1b[0m]", st.color, st.name);
-                else std::print(stream, "[{}]", st.name);
+
+                hup.file.append(std::format("[{}]", st.name));
+
+                if (color) {
+                    hup.terminal.append(std::format("[{}{}\x1b[0m]", st.color, st.name));
+                }else {
+                    hup.terminal.append(std::format("[{}]", st.name));
+                }
             }
-            std::print(stream, " ");
+        }
+        hup.terminal.append(" ");
+        hup.file.append(" ");
+        return hup;
+    }
+    static void printBody(FILE* stream, LogOptions opt, HeadUp header, std::string_view msg){
+        switch(opt.printy){
+        case PrinTy::Terminal:
+            std::print(stream,"{}", header.terminal);
+            std::println(stream,"{}", msg);
+            break;
+        case PrinTy::File:
+            saveToFile(header.file);
+            saveToFile(msg, true);
+            break;
+        case PrinTy::Both:
+            std::print(stream,"{}", header.terminal);
+            std::println(stream,"{}", msg);
+            saveToFile(header.file);
+            saveToFile(msg, true);
+            break;
         }
     }
 public:
     template <typename... Args>
     static void Message(LogOptions opt, std::format_string<Args...> fmt, Args&&... args) {
         FILE* const stream = opt.stream ? opt.stream : getDefaultStream(opt.level);
-        printHeader(stream, opt.level, opt.category);
-        std::println(stream, fmt, std::forward<Args>(args)...);
+        printBody(stream, opt, printHeader(stream, opt), std::format(fmt, std::forward<Args>(args)...));
     }
     template <typename... Args>
     static void Message(std::format_string<Args...> fmt, Args&&... args) {
