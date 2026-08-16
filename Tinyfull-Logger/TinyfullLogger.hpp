@@ -92,7 +92,7 @@ namespace TinyLoggerAnsiCheck {
     }
 }
 
-class Log {
+class tlg {
 public:
     enum class PrinTy {
         Terminal,
@@ -173,6 +173,8 @@ private:
         if (outFile.is_open()){
             outFile << msg;
             if (newline) outFile << '\n';
+        }else{
+            tlg::Error("Failed to write to file!");
         }
     }
 
@@ -207,22 +209,17 @@ private:
         return hup;
     }
     static void SendMessage(FILE* stream, LogOptions opt, std::string_view msg){
-        auto header = getHeader(stream, opt);
-        switch(opt.printy){
-        case PrinTy::Terminal:
+        const auto header = getHeader(stream, opt);
+        const bool writes = (opt.printy == PrinTy::File     || opt.printy == PrinTy::Both);
+        const bool prints = (opt.printy == PrinTy::Terminal || opt.printy == PrinTy::Both);
+
+        if (prints){
             std::print(stream,"{}", header.terminal);
             std::println(stream,"{}", msg);
-            break;
-        case PrinTy::File:
+        }
+        if (writes){
             saveToFile(header.file);
             saveToFile(msg, true);
-            break;
-        case PrinTy::Both:
-            std::print(stream,"{}", header.terminal);
-            std::println(stream,"{}", msg);
-            saveToFile(header.file);
-            saveToFile(msg, true);
-            break;
         }
     }
 public:
@@ -231,9 +228,42 @@ public:
         FILE* const stream = opt.stream ? opt.stream : getDefaultStream(opt.level);
         SendMessage(stream, opt, std::format(fmt, std::forward<Args>(args)...));
     }
+
+    template <typename... Args>
+    static void Info(std::format_string<Args...> fmt, Args&&... args){
+        Message({.level = Level::Info}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void Fatal(std::format_string<Args...> fmt, Args&&... args){
+        Message({.level = Level::Fatal}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void Error(std::format_string<Args...> fmt, Args&&... args){
+        Message({.level = Level::Error}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void Warning(std::format_string<Args...> fmt, Args&&... args){
+        Message({.level = Level::Warning}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void Debug(std::format_string<Args...> fmt, Args&&... args){
+        Message({.level = Level::Debug}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void Trace(std::format_string<Args...> fmt, Args&&... args){
+        Message({.level = Level::Trace}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void WFile(std::format_string<Args...> fmt, Args&&... args){
+        Message({.printy = PrinTy::File}, fmt, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void PFile(std::format_string<Args...> fmt, Args&&... args){
+        Message({.printy = PrinTy::Both}, fmt, std::forward<Args>(args)...);
+    }
     template <typename... Args>
     static void Message(std::format_string<Args...> fmt, Args&&... args) {
-        Message(LogOptions{}, fmt, std::forward<Args>(args)...);
+        Message({}, fmt, std::forward<Args>(args)...);
     }
 };
 
